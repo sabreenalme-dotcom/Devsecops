@@ -1,0 +1,5 @@
+# [VULN] Outdated packages with known CVEs — pip-audit will flag these
+Flask==1.0.2
+Werkzeug==0.15.0
+Jinja2==2.10.1
+requests==2.18.4

@@ -1,0 +1,67 @@
+name: DevSecOps Security Gate
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Security Tools
+        run: pip install bandit pip-audit
+
+      # ── Stage 1: Secret Scanning ───────────────────────────────
+      - name: Install Gitleaks
+        run: |
+          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.0/gitleaks_8.18.0_linux_x64.tar.gz
+          tar -xzf gitleaks_8.18.0_linux_x64.tar.gz
+          sudo mv gitleaks /usr/local/bin/gitleaks
+
+      - name: Secret Scan (Gitleaks)
+        run: |
+          echo "===== STAGE 1: SECRET SCANNING ====="
+          gitleaks detect --source . --verbose --redact
+          echo "Secret scan passed."
+
+      # ── Stage 2: Static Code Analysis (SAST) ──────────────────
+      - name: SAST Scan (Bandit)
+        run: |
+          echo "===== STAGE 2: STATIC CODE ANALYSIS ====="
+          bandit -r app/ -ll -ii -f txt -o bandit-report.txt
+          echo "SAST scan passed."
+
+      - name: Upload Bandit Report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.txt
+
+      # ── Stage 3: Dependency Vulnerability Check ────────────────
+      - name: Dependency Check (pip-audit)
+        run: |
+          echo "===== STAGE 3: DEPENDENCY CHECK ====="
+          pip-audit -r app/requirements.txt
+          echo "Dependency check passed."
+
+      # ── Deploy (only reached if all stages pass) ───────────────
+      - name: Deploy Application
+        run: |
+          echo "===== ALL SECURITY CHECKS PASSED ====="
+          echo "Deploying application to production..."
